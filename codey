@@ -1,0 +1,224 @@
+datageneration3<-function(n){
+  t1fs<-y0j1t<-y0j2t<-y0j3t<-y0j1<-y0j2<-y0j3<-t1<-hatDEj<-t21<-t22<-t23<-covarsy1<-covarsy2<-covarsy3<- DEj<-rep(NA,n)
+  
+  nj<-sample(seq(400,1000),n, replace=TRUE)
+  
+  #alphaX<-((1-0.7)/0.2 - 1/0.7)*0.7^2
+  #betax<-alphaX/0.7 - alphaX
+  #Srate<-rbeta(n, alphaX, betax)
+  
+ 
+  betax<-2/0.7-2
+  Srate<-rbeta(n, 2, betax)
+  Qt<-sample(1:n, n/2, replace=FALSE)
+  Q<-(1:n%in%Qt)*1
+  dif<-runif(n, 0.05, 0.25)
+  
+  for(i in 1:n){
+    idef<-rnorm(nj[i],0,0.01)
+    #idef<-0
+    znumout<-ceiling(Q[i]*nj[i]*0.9) + ceiling((1-Q[i])*nj[i]*0.1)
+    z0numout<-nj[i]-znumout
+    notin<-sample(1:nj[i],z0numout,replace=FALSE)
+    z0<-(1:nj[i]%in%notin)*1.0
+    z1<-1-z0
+    #idef<-0
+    s1j<-rnorm(nj[i], Srate[i]+idef, 0.5)
+    s0j<-rnorm(nj[i],Srate[i]*dif[i]+idef, 0.5) 
+    
+    t1[i]<-sqrt((1-(znumout/nj[i]))*sum(z1*(s1j-mean(s1j))^2)/(znumout-1)/(znumout)+(1-(z0numout/nj[i]))*sum(z0*(s0j-mean(s0j))^2)/( z0numout-1)/( z0numout))
+    #t1sf[i]<-sqrt(var(s1j[z1==1])/(sum(z1==1))+var(s0j[z0==1])/(sum(z0==1)))
+    hatDEj[i]<-mean(s1j[z1==1])-mean(s0j[z0==1])
+    DEj[i]<-mean(s1j-s0j)
+   
+    
+    y0j11i<-rpois(nj[i], 1.1-0.8*Q[i]+idef)
+    y0j12i<-rpois(nj[i], 1.1-0.2*Q[i]-0.1*DEj[i]-0.2*DEj[i]*Q[i]+idef)
+    y0j13i<-rpois(nj[i], 1.1-DEj[i]*Q[i]+idef)
+    
+    
+    
+    y0j1[i]<-mean(y0j11i[z0==1])
+    y0j2[i]<-mean(y0j12i[z0==1])
+    y0j3[i]<-mean(y0j13i[z0==1])
+    
+    y0j1t[i]<-mean(y0j11i)
+    y0j2t[i]<-mean(y0j12i)
+    y0j3t[i]<-mean(y0j13i)
+    
+    
+    
+    
+    covarsy1[i]<-cov(s0j[z0==1],y0j11i[z0==1])
+    covarsy2[i]<-cov(s0j[z0==1],y0j12i[z0==1])
+    covarsy3[i]<-cov(s0j[z0==1],y0j13i[z0==1])
+    
+  }
+  
+  return(cbind(y0j1t, y0j2t, y0j3t, y0j1, y0j2,y0j3, t1, hatDEj,  DEj, t21,  t22,  t23, Q,  covarsy1,covarsy2,covarsy3))
+}
+
+
+MMcheng<-function(n,w,y,z,t1,covit, t2){
+  zout<-sum(z)
+  muyz1<-sum(y*z)/sum(z)
+  muyz0<-sum(y*(1-z))/sum(1-z)
+  muxz1<-sum(w*z)/sum(z)
+  muxz0<-sum(w*(1-z))/sum((1-z))
+  
+  
+  Sxx1<-(1/(zout-1))*sum(z*(w*z-muxz1)^2)
+  Sxx0<-(1/(n-zout-1))*sum((1-z)*(w*(1-z)-muxz0)^2)
+  
+  Sxyz1<-(1/(zout-1))*sum(z*(w*z-muxz1)*(y-muyz1))
+  Sxyz0<-(1/(n-zout-1))*sum((1-z)*(w*(1-z)-muxz0)*(y-muyz0))
+  
+  
+  sigmsy1<-(1/(zout-1))*sum(covit*z)
+  sigmsy0<-(1/(n-zout-1))*sum(covit*(1-z))
+  
+  simgaqz<-(1/sum(z))*sum(z*t1^2)
+  simgaqz0<-(1/sum(1-z))*sum((1-z)*t1^2)
+  
+  betawz1<-(Sxyz1-sigmsy1)/(Sxx1 - simgaqz)
+  betaz<- muyz1 - betawz1*muxz1
+  
+  
+  betawz0<-(Sxyz0-sigmsy0)/(Sxx0 - simgaqz0)
+  beta0<-muyz0 - betawz0*muxz0
+  
+  
+  Arow1<-c(-sum((1-z)^2), 0, -sum((1-z)^2*w), 0)
+  Arow2<-c(0, -sum(z^2), 0, -sum((z^2)*w))
+  Arow3<-c(-sum((1-z)^2*w),0, sum(-(1-z)^2*w^2 + (1-z)*t1^2), 0)
+  Arow4<-c(0,-sum((z^2)*w),0 , sum(-z^2*w^2 + z*t1^2))
+  
+  
+  
+  An<-(1/n)*rbind( Arow1,  Arow2,  Arow3, Arow4)
+  Ans<-solve(An)
+  
+  sci0<-(y-beta0*(1-z)-betaz*z-betawz0*(1-z)*w-betawz1*z*w)*(1-z)
+  sci1<-(y-beta0*(1-z)-betaz*z-betawz0*(1-z)*w-betawz1*z*w)*(z)
+  sci2<-(y-beta0*(1-z)-betaz*z-betawz0*(1-z)*w-betawz1*z*w)*((1-z)*w) - covit*(1-z) + betawz0*(1-z)*t1^2
+  sci3<-(y-beta0*(1-z)-betaz*z-betawz0*(1-z)*w-betawz1*z*w)*(z*w) - covit*z + betawz1*z*t1^2
+  
+  b00<-sum(sci0^2)
+  b01<-sum(sci0*sci1)
+  b02<-sum(sci0*sci2)
+  b03<-sum(sci0*sci3)
+  
+  b11<-sum(sci1^2)
+  b12<-sum(sci1*sci2)
+  b13<-sum(sci1*sci3)
+  
+  b22<-sum(sci2^2)
+  b23<-sum(sci2*sci3)
+  
+  
+  b33<-sum(sci3^2)
+  
+  Bnmat<-matrix(rep(NA,16), ncol=4)
+  Bnmat[1,]<-cbind(b00,   b01,   b02,   b03)
+  Bnmat[2,]<-cbind(b01,   b11,   b12,   b13)
+  Bnmat[3,]<-cbind(b02,   b12,   b22,   b23)
+  Bnmat[4,]<-cbind(b03,   b13,   b23,   b33)
+  Bn<-(1/n)*Bnmat
+  
+  covvarout<-(1/n)*(Ans%*%Bn%*%Ans)
+  varcoeff<-sqrt(c(covvarout[1,1], covvarout[1,1]+covvarout[2,2], covvarout[3,3], covvarout[3,3]+covvarout[4,4]))
+  
+  return(list(coeff=c(beta0,betaz-beta0, betawz0, betawz1-betawz0), covcovert=varcoeff, covmatNOTcovert=covvarout))
+}
+
+simsfunc<-function(B,n){
+  coeffout1<-coeffout2<-coeffout3<-matrix(rep(rep(NA,4),B), ncol=4)
+  coeffout1F<-coeffout2F<-coeffout3F<-matrix(rep(rep(NA,4),B), ncol=4)
+  coeffout1Ft<-coeffout2Ft<-coeffout3Ft<-matrix(rep(rep(NA,4),B), ncol=4)
+  varcoeffout1<- varcoeffout2<- varcoeffout3<-matrix(rep(rep(NA,4),B), ncol=4)
+  varcoeffout1F<-varcoeffout2F<-varcoeffout3F<-matrix(rep(rep(NA,4),B), ncol=4)
+  varcoeffout1Ft<-varcoeffout2Ft<-varcoeffout3Ft<-matrix(rep(rep(NA,4),B), ncol=4)
+  for(i in 1:B){
+    sim1<-as.data.frame(datageneration3(n))
+    
+    mod1<-summary(lm(y0j1~Q*hatDEj, data=sim1))$coeff
+    mod2<-summary(lm(y0j2~Q*hatDEj, data=sim1))$coeff
+    mod3<-summary(lm(y0j3~Q*hatDEj, data=sim1))$coeff
+    
+    coeffout1pull<-MMcheng(n,sim1$hatDEj,sim1$y0j1,sim1$Q,sim1$t1, sim1$covarsy1, sim1$t21)
+    coeffout2pull<-MMcheng(n,sim1$hatDEj,sim1$y0j2,sim1$Q,sim1$t1, sim1$covarsy2, sim1$t22)
+    coeffout3pull<-MMcheng(n,sim1$hatDEj,sim1$y0j3,sim1$Q,sim1$t1, sim1$covarsy3, sim1$t23)
+   
+    
+    coeffout1[i,]<-coeffout1pull$coeff
+    coeffout2[i,]<-coeffout2pull$coeff
+    coeffout3[i,]<-coeffout3pull$coeff
+    
+    varcoeffout1[i,]<-coeffout1pull$covcovert
+    varcoeffout2[i,]<-coeffout2pull$covcovert
+    varcoeffout3[i,]<-coeffout3pull$covcovert
+    
+    coeffout1F[i,]<-mod1[,1]
+    coeffout2F[i,]<-mod2[,1]
+    coeffout3F[i,]<-mod3[,1]
+    
+    varcoeffout1F[i,]<-mod1[,4]
+    varcoeffout2F[i,]<-mod2[,4]
+    varcoeffout3F[i,]<-mod3[,4]
+ 
+  }
+  
+  
+  coeffout1m<-apply(coeffout1, 2, mean)
+  coeffout2m<-apply(coeffout2, 2, mean)
+  coeffout3m<-apply(coeffout3, 2, mean)
+  
+  varcoeffout1m<-apply(varcoeffout1, 2, mean)
+  varcoeffout2m<-apply(varcoeffout2, 2, mean)
+  varcoeffout3m<-apply(varcoeffout3, 2, mean)
+  
+  
+  power.p1.out<-apply(pnorm(abs(coeffout1/varcoeffout1), lower.tail=FALSE)*2<=0.05,2,mean)
+  power.p2.out<-apply(pnorm(abs(coeffout2/varcoeffout2), lower.tail=FALSE)*2<=0.05,2,mean)
+  power.p3.out<-apply(pnorm(abs(coeffout3/varcoeffout3), lower.tail=FALSE)*2<=0.05,2,mean)
+  
+  
+  ANCcov1<-mean(!sign(coeffout1[,2]+varcoeffout1[,2]*1.96)==sign(coeffout1[,2]-varcoeffout1[,2]*1.96))
+  ANCcov2<-mean(!sign(coeffout2[,2]+varcoeffout2[,2]*1.96)==sign(coeffout2[,2]-varcoeffout2[,2]*1.96))
+  ANCcov3<-mean(!sign(coeffout3[,2]+varcoeffout3[,2]*1.96)==sign(coeffout3[,2]-varcoeffout3[,2]*1.96))
+  
+  power.p1.outss<-mean(ifelse(!sign(coeffout1[,2]+varcoeffout1[,2]*1.96)==sign(coeffout1[,2]-varcoeffout1[,2]*1.96)&pnorm(abs(coeffout1[,4]/varcoeffout1[,4]), lower.tail=FALSE)*2<0.05, 1, 0))
+  power.p2.outss<-mean(ifelse(!sign(coeffout2[,2]+varcoeffout2[,2]*1.96)==sign(coeffout2[,2]-varcoeffout2[,2]*1.96)&pnorm(abs(coeffout2[,4]/varcoeffout2[,4]), lower.tail=FALSE)*2<0.05, 1, 0))
+  power.p3.outss<-mean(ifelse(!sign(coeffout3[,2]+varcoeffout3[,2]*1.96)==sign(coeffout3[,2]-varcoeffout3[,2]*1.96)&pnorm(abs(coeffout3[,4]/varcoeffout3[,4]), lower.tail=FALSE)*2<0.05, 1, 0))
+  
+  
+  coeffout1fm<-apply(coeffout1F, 2, mean)
+  coeffout2fm<-apply(coeffout2F, 2, mean)
+  coeffout3fm<-apply(coeffout3F, 2, mean)
+  
+  varcoeffout1Fm<-apply(varcoeffout1F<=0.05, 2, mean)
+  varcoeffout2Fm<-apply(varcoeffout2F<=0.05, 2, mean)
+  varcoeffout3Fm<-apply(varcoeffout3F<=0.05, 2, mean)
+  
+  
+  
+  
+  #return(rbind(coeffout1m,coeffout1fm,  coeffout2m, coeffout2fm, coeffout3m, coeffout3fm))
+  return(list(tab1=rbind(coeffout1m,power.p1.out, coeffout2m,  power.p2.out, coeffout3m,  power.p3.out, coeffout1fm, varcoeffout1Fm,
+                         coeffout2fm, varcoeffout2Fm,  coeffout3fm, varcoeffout3Fm),
+              tab2=rbind(c(ANCcov1, power.p1.outss,  power.p1.out[4]),
+                         c(ANCcov2, power.p2.outss,  power.p2.out[4]),
+                         c(ANCcov3, power.p3.outss,  power.p3.out[4]))))
+}
+
+
+#example for paper 
+set.seed(14)
+paperexample<-simsfunc(5000,32)
+
+
+
+
+library(xtable)
+xtable(paperexample$tab1)
+xtable(paperexample$tab2)
