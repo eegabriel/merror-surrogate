@@ -212,8 +212,7 @@ simsfunc<-function(B,n){
 }
 
 
-#example for paper 
-set.seed(14)
+
 paperexample<-simsfunc(5000,32)
 
 
